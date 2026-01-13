@@ -4,31 +4,55 @@ from difflib import SequenceMatcher
 import random
 import unicodedata
 
-# --- 1. CONFIGURATION & STYLE ---
+# --- 1. CONFIGURATION & DESIGN ---
 st.set_page_config(page_title="Contrôle 5ème : Masse et Volume", page_icon="🧪", layout="centered")
 
-# --- FONCTIONS UTILITAIRES ---
+# CSS pour rendre ça plus joli (Titres centrés, pas de marge inutile)
+st.markdown("""
+    <style>
+    .main {
+        background-color: #f8f9fa;
+    }
+    h1 {
+        color: #4B0082;
+        text-align: center;
+        font-family: 'Helvetica', sans-serif;
+    }
+    h2, h3 {
+        color: #2c3e50;
+    }
+    .stButton>button {
+        width: 100%;
+        background-color: #4CAF50;
+        color: white;
+        font-size: 18px;
+        font-weight: bold;
+        border-radius: 10px;
+        padding: 10px;
+    }
+    .stButton>button:hover {
+        background-color: #45a049;
+    }
+    </style>
+    """, unsafe_allow_html=True)
 
+# --- FONCTIONS UTILITAIRES ---
 def remove_accents(input_str):
     if not input_str: return ""
     nfkd_form = unicodedata.normalize('NFKD', input_str)
     return "".join([c for c in nfkd_form if not unicodedata.combining(c)])
 
-def check_spelling(answer_user, answer_key):
-    if not answer_user: return False
-    # 1. On nettoie tout (minuscule + sans accent)
+def check_spelling_ratio(answer_user, answer_key):
+    if not answer_user: return 0.0
     clean_user = remove_accents(str(answer_user).lower().strip())
     clean_key = remove_accents(str(answer_key).lower().strip())
-    
-    # 2. Comparaison souple (Ratio de similarité)
-    # 0.75 permet d'accepter "menicque" pour "menisque"
-    ratio = SequenceMatcher(None, clean_user, clean_key).ratio()
-    return ratio >= 0.75
+    return SequenceMatcher(None, clean_user, clean_key).ratio()
 
 # --- GENERATION PDF ---
 class PDF(FPDF):
     def header(self):
-        self.set_font('Arial', 'B', 15)
+        self.set_font('Arial', 'B', 16)
+        self.set_text_color(75, 0, 130) # Violet
         self.cell(0, 10, 'Correction : La Masse et le Volume', 0, 1, 'C')
         self.ln(5)
 
@@ -36,49 +60,64 @@ def create_detailed_pdf(nom, prenom, classe, score, total, report):
     pdf = PDF()
     pdf.add_page()
     
-    # Infos
+    # Cadre Info Élève
     pdf.set_font("Arial", '', 12)
-    pdf.set_fill_color(230, 230, 250)
-    pdf.cell(0, 10, txt=f"Eleve : {nom} {prenom} | Classe : {classe}", ln=1, align='L', fill=True)
+    pdf.set_fill_color(240, 240, 255) # Bleu très pâle
+    pdf.set_draw_color(200, 200, 200)
+    pdf.rect(10, 25, 190, 15, 'DF')
+    pdf.set_xy(15, 28)
+    pdf.set_text_color(0, 0, 0)
+    pdf.cell(0, 10, txt=f"Eleve : {nom} {prenom}   |   Classe : {classe}", ln=1)
     
     # Note
-    pdf.ln(5)
+    pdf.ln(10)
     pdf.set_font("Arial", 'B', 14)
-    color = (0, 100, 0) if score >= 10 else (200, 0, 0)
-    pdf.set_text_color(*color)
+    if score >= 10:
+        pdf.set_text_color(34, 139, 34) # Vert Forêt
+    else:
+        pdf.set_text_color(220, 20, 60) # Rouge
     pdf.cell(0, 10, txt=f"NOTE FINALE : {score} / {total}", ln=1, align='C')
-    pdf.set_text_color(0, 0, 0)
     pdf.ln(5)
     
     # Détails
     pdf.set_font("Arial", 'B', 12)
-    pdf.cell(0, 10, txt="Correction detaillee :", ln=1)
+    pdf.set_text_color(0, 0, 0)
+    pdf.cell(0, 10, txt="Correction detaillee par exercice :", ln=1)
     
     for item in report:
         q = item['question'].encode('latin-1', 'replace').decode('latin-1')
         u = str(item['user_answer']).encode('latin-1', 'replace').decode('latin-1')
         c = str(item['correct_answer']).encode('latin-1', 'replace').decode('latin-1')
+        status = item['status'] # 'perfect', 'fuzzy', 'wrong'
         
-        pdf.ln(4)
-        pdf.set_font("Arial", 'B', 11)
-        pdf.set_fill_color(240, 240, 240)
-        pdf.multi_cell(0, 8, txt=f"Question : {q}", fill=True)
+        pdf.ln(3)
+        # Question (Fond gris)
+        pdf.set_font("Arial", 'B', 10)
+        pdf.set_fill_color(245, 245, 245)
+        pdf.multi_cell(0, 7, txt=f"Q: {q}", fill=True)
         
-        pdf.set_font("Arial", '', 11)
-        if item['is_correct']:
-            pdf.set_text_color(0, 128, 0)
-            pdf.cell(0, 6, txt=f"   Votre reponse : {u} (Correct !)", ln=1)
+        # Réponse
+        pdf.set_font("Arial", '', 10)
+        if status == 'perfect':
+            pdf.set_text_color(0, 128, 0) # Vert
+            pdf.cell(0, 6, txt=f"   -> {u} (Parfait)", ln=1)
+        elif status == 'fuzzy':
+            pdf.set_text_color(255, 140, 0) # Orange foncé
+            pdf.cell(0, 6, txt=f"   -> {u} (Accepte avec faute)", ln=1)
+            pdf.set_font("Arial", 'I', 9)
+            pdf.cell(0, 6, txt=f"      Orthographe correcte : {c}", ln=1)
         else:
-            pdf.set_text_color(200, 0, 0)
-            pdf.cell(0, 6, txt=f"   Votre reponse : {u}", ln=1)
+            pdf.set_text_color(178, 34, 34) # Rouge
+            pdf.cell(0, 6, txt=f"   -> {u} (Faux)", ln=1)
             pdf.set_text_color(0, 0, 0)
-            pdf.set_font("Arial", 'B', 10)
-            pdf.cell(0, 6, txt=f"   -> La bonne reponse etait : {c}", ln=1)
+            pdf.set_font("Arial", 'B', 9)
+            pdf.cell(0, 6, txt=f"      Reponse attendue : {c}", ln=1)
+        
         pdf.set_text_color(0, 0, 0)
 
     return pdf.output(dest='S').encode('latin-1')
 
-# --- INITIALISATION STATE (Mémoire) ---
+# --- LOGIQUE STATE (Mémoire) ---
 if 'submitted' not in st.session_state:
     st.session_state.submitted = False
 
@@ -90,151 +129,187 @@ if 'shuffled_protocol' not in st.session_state:
     st.session_state.shuffled_protocol = melange
     st.session_state.correct_protocol_values = etapes_sans_num
 
-# --- INTERFACE ---
-# Variable pour verrouiller les inputs si déjà soumis
-disable_inputs = st.session_state.submitted
+# --- INTERFACE UTILISATEUR ---
+disable = st.session_state.submitted
 
+# Sidebar
 with st.sidebar:
-    st.header("👤 Identité")
-    nom = st.text_input("Ton Nom", disabled=disable_inputs)
-    prenom = st.text_input("Ton Prénom", disabled=disable_inputs)
-    classe = st.selectbox("Ta Classe", ["5 Sci C", "5 Sci D", "5 Sci E", "Autre"], disabled=disable_inputs)
+    st.image("https://cdn-icons-png.flaticon.com/512/2933/2933886.png", width=80)
+    st.header("Identité de l'élève")
+    nom = st.text_input("NOM de famille", disabled=disable).upper()
+    prenom = st.text_input("Prénom", disabled=disable).capitalize()
+    classe = st.selectbox("Classe", ["5 Sci C", "5 Sci D", "5 Sci E", "Autre"], disabled=disable)
     if st.session_state.submitted:
-        st.info("⚠️ Le contrôle est terminé. Tu ne peux plus modifier tes réponses.")
+        st.success("✅ Copie rendue.")
 
-st.title("🧪 Contrôle : La Masse et le Volume")
+st.title("⚖️ Contrôle : Masse et Volume")
 st.markdown("---")
 
 with st.form("quiz_form"):
     
-    # EXERCICE 1
-    st.subheader("Exercice 1 : Le bon vocabulaire (4 pts)")
-    q1 = st.radio("1. Définition du VOLUME :", 
-                  ["La quantité de matière dans un objet", "L'espace occupé par un objet", "Le poids de l'objet"], 
-                  disabled=disable_inputs)
-    q2 = st.radio("2. Définition de la MASSE :", 
-                  ["La quantité de matière dans un objet", "L'espace occupé par un objet", "La taille de l'objet"],
-                  disabled=disable_inputs)
-    
-    c1, c2 = st.columns(2)
-    q3_vol = c1.selectbox("Pour mesurer un VOLUME on utilise :", ["Une balance", "Une éprouvette graduée", "Une règle"], disabled=disable_inputs)
-    q3_mas = c2.selectbox("Pour mesurer une MASSE on utilise :", ["Une balance", "Une éprouvette graduée", "Un thermomètre"], disabled=disable_inputs)
-    st.markdown("---")
+    # --- EXERCICE 1 ---
+    with st.container(border=True):
+        st.subheader("Exercice 1 : Vocabulaire (4 pts)")
+        q1 = st.radio("1. Définition du VOLUME :", 
+                      ["La quantité de matière", "L'espace occupé par un objet", "Le poids de l'objet"], 
+                      horizontal=True, disabled=disable)
+        q2 = st.radio("2. Définition de la MASSE :", 
+                      ["La quantité de matière", "L'espace occupé par un objet", "La taille de l'objet"],
+                      horizontal=True, disabled=disable)
+        
+        st.markdown("**3. Instruments et Unités :**")
+        c1, c2 = st.columns(2)
+        q3_vol = c1.selectbox("Outil pour le VOLUME :", ["Une balance", "Une éprouvette graduée", "Une règle"], disabled=disable)
+        q3_mas = c2.selectbox("Outil pour la MASSE :", ["Une balance", "Une éprouvette graduée", "Un thermomètre"], disabled=disable)
 
-    # EXERCICE 2
-    st.subheader("Exercice 2 : Les conversions (3 pts)")
-    st.caption("Rappel : 1 L = 1 dm³ et 1 mL = 1 cm³")
-    cc1, cc2, cc3 = st.columns(3)
-    q4 = cc1.text_input("1,5 L = ... dm³", disabled=disable_inputs)
-    q5 = cc2.text_input("350 mL = ... cm³", disabled=disable_inputs)
-    q6 = cc3.text_input("2 kg = ... g", disabled=disable_inputs)
-    st.markdown("---")
+    # --- EXERCICE 2 ---
+    with st.container(border=True):
+        st.subheader("Exercice 2 : Conversions (3 pts)")
+        st.info("Rappel : 1 L = 1 dm³ et 1 mL = 1 cm³")
+        cc1, cc2, cc3 = st.columns(3)
+        q4 = cc1.text_input("1,5 L = ... dm³", disabled=disable)
+        q5 = cc2.text_input("350 mL = ... cm³", disabled=disable)
+        q6 = cc3.text_input("2 kg = ... g", disabled=disable)
 
-    # EXERCICE 3
-    st.subheader("Exercice 3 : La pratique (6 pts)")
-    st.write(" **A. Mesure de liquide**")
-    q7 = st.text_input("Comment s'appelle la courbe formée par le liquide ?", disabled=disable_inputs).strip()
-    q8 = st.radio("Où faut-il placer son œil ?", ["Au dessus du liquide", "En face du bas du ménisque", "En dessous du niveau"], disabled=disable_inputs)
-    
-    st.write(" **B. Mesure de solide**")
-    col_txt, col_dum = st.columns([2,1])
-    with col_txt:
-        st.info("Léa met 30 mL d'eau (V1). Elle ajoute une pierre, le niveau monte à 48 mL (V2).")
-        q9 = st.number_input("Quel est le volume de la pierre (en mL) ?", min_value=0, step=1, disabled=disable_inputs)
-    st.markdown("---")
+    # --- EXERCICE 3 ---
+    with st.container(border=True):
+        st.subheader("Exercice 3 : La Pratique (6 pts)")
+        
+        st.markdown("#### A. Mesure de liquide")
+        c_liq1, c_liq2 = st.columns(2)
+        q7 = c_liq1.text_input("Nom de la courbe du liquide ?", disabled=disable).strip()
+        q8 = c_liq2.radio("Où placer son œil ?", ["Au dessus", "En face du bas du ménisque", "En dessous"], disabled=disable)
+        
+        st.divider()
+        st.markdown("#### B. Solide (Déplacement d'eau)")
+        col_txt, col_dum = st.columns([3,1])
+        with col_txt:
+            st.info("💧 V1 (eau) = **30 mL** |  🪨 V2 (eau + pierre) = **48 mL**")
+            q9 = st.number_input("Quel est le volume de la pierre (mL) ?", min_value=0, step=1, disabled=disable)
 
-    # EXERCICE 4
-    st.subheader("Exercice 4 : Le Protocole (4 pts)")
-    st.write("Remets les étapes pour peser 50g de sable.")
-    opts = ["-- Choisir --"] + st.session_state.shuffled_protocol
-    
-    pe1 = st.selectbox("Étape 1", opts, key="p1", disabled=disable_inputs)
-    pe2 = st.selectbox("Étape 2", opts, key="p2", disabled=disable_inputs)
-    pe3 = st.selectbox("Étape 3", opts, key="p3", disabled=disable_inputs)
-    pe4 = st.selectbox("Étape 4", opts, key="p4", disabled=disable_inputs)
-    pe5 = st.selectbox("Étape 5", opts, key="p5", disabled=disable_inputs)
-    st.markdown("---")
+    # --- EXERCICE 4 ---
+    with st.container(border=True):
+        st.subheader("Exercice 4 : Le Protocole (4 pts)")
+        st.write("Remets les étapes pour peser **50g de sable** dans l'ordre.")
+        
+        opts = ["-- Choisir --"] + st.session_state.shuffled_protocol
+        
+        # Affichage plus compact
+        pe1 = st.selectbox("Étape 1", opts, key="p1", disabled=disable)
+        pe2 = st.selectbox("Étape 2", opts, key="p2", disabled=disable)
+        pe3 = st.selectbox("Étape 3", opts, key="p3", disabled=disable)
+        pe4 = st.selectbox("Étape 4", opts, key="p4", disabled=disable)
+        pe5 = st.selectbox("Étape 5", opts, key="p5", disabled=disable)
 
-    # EXERCICE 5
-    st.subheader("Exercice 5 : Réflexion (3 pts)")
-    q10 = st.number_input("Quelle est la masse d'un Litre d'eau (en kg) ?", min_value=0.0, step=0.1, disabled=disable_inputs)
-    q11 = st.radio("1 L d'huile est-il plus lourd ou plus léger qu'1 L d'eau ?", ["Plus lourd", "Plus léger"], disabled=disable_inputs)
-    q12 = st.text_input("Grandeur liant masse et volume ?", disabled=disable_inputs).strip()
+    # --- EXERCICE 5 ---
+    with st.container(border=True):
+        st.subheader("Exercice 5 : Réflexion (3 pts)")
+        c5a, c5b = st.columns(2)
+        q10 = c5a.number_input("Masse d'1 L d'eau (kg) ?", 0.0, step=0.1, disabled=disable)
+        q11 = c5b.radio("1 L d'huile est...", ["Plus lourd que l'eau", "Plus léger que l'eau"], disabled=disable)
+        q12 = st.text_input("Nom de la grandeur (Masse...?)", disabled=disable).strip()
 
-    # Le bouton disparaît ou se grise après validation
-    submit_btn = st.form_submit_button("✅ Valider ma copie", disabled=disable_inputs)
+    # Bouton de validation
+    submit_btn = st.form_submit_button("✅ VALIDER MA COPIE", disabled=disable)
 
-# --- LOGIQUE DE CORRECTION ---
+# --- CORRECTION ---
 if submit_btn or st.session_state.submitted:
     
-    # 1. Vérification Anti-Doublon (Uniquement si c'est la première soumission)
+    # 1. Vérification Anti-Doublon (Seulement au premier clic)
     if not st.session_state.submitted:
-        choix_proto = [pe1, pe2, pe3, pe4, pe5]
-        choix_reels = [c for c in choix_proto if c != "-- Choisir --"]
+        choix = [pe1, pe2, pe3, pe4, pe5]
+        reels = [c for c in choix if c != "-- Choisir --"]
         
-        if len(set(choix_reels)) < len(choix_reels):
-            st.error("⛔ Tu as mis plusieurs fois la même étape ! Corrige avant de valider.")
+        if len(set(reels)) < len(reels):
+            st.error("⛔ Erreur : Tu as mis plusieurs fois la même étape !")
             st.stop()
-        if "-- Choisir --" in choix_proto:
-            st.warning("⚠️ Tu n'as pas fini le protocole.")
+        if "-- Choisir --" in choix:
+            st.warning("⚠️ Complète toutes les étapes du protocole.")
             st.stop()
             
-        # Si tout est bon, on verrouille pour de bon
         st.session_state.submitted = True
-        st.rerun() # On recharge la page pour griser les inputs
+        st.rerun()
 
-    # 2. Calcul des points (Maintenant que c'est verrouillé)
+    # 2. Notation
     score = 0
     report = []
 
-    def check(q, u, c, pts, fuzzy=False, num=False):
-        ok = False
-        if num:
-            try: 
-                if float(str(u).replace(',','.')) == float(c): ok = True
-            except: pass
-        elif fuzzy:
-            if check_spelling(str(u), str(c)): ok = True
-        else:
-            if str(u) == str(c): ok = True
+    def check(q, u, c, pts, type_check="text"):
+        status = "wrong"
+        points_gagnes = 0
         
-        report.append({"question": q, "user_answer": u, "correct_answer": c, "is_correct": ok})
-        return pts if ok else 0
+        if type_check == "num":
+            try:
+                if float(str(u).replace(',','.')) == float(c): 
+                    status = "perfect"
+                    points_gagnes = pts
+            except: pass
+            
+        elif type_check == "fuzzy":
+            ratio = check_spelling_ratio(str(u), str(c))
+            if str(u).lower().strip() == str(c).lower().strip():
+                status = "perfect"
+                points_gagnes = pts
+            elif ratio >= 0.75: # Tolérance
+                status = "fuzzy"
+                points_gagnes = pts
+                
+        else: # Text exact
+            if str(u) == str(c):
+                status = "perfect"
+                points_gagnes = pts
+        
+        report.append({"question": q, "user_answer": u, "correct_answer": c, "status": status})
+        return points_gagnes
 
-    # Ex 1
+    # Calculs Ex 1, 2, 3, 5
     score += check("Def Volume", q1, "L'espace occupé par un objet", 1)
-    score += check("Def Masse", q2, "La quantité de matière dans un objet", 1)
-    score += check("Instru Volume", q3_vol, "Une éprouvette graduée", 1)
-    score += check("Instru Masse", q3_mas, "Une balance", 1)
-    # Ex 2
-    score += check("1,5 L -> dm3", q4, "1.5", 1, num=True)
-    score += check("350 mL -> cm3", q5, "350", 1, num=True)
-    score += check("2 kg -> g", q6, "2000", 1, num=True)
-    # Ex 3
-    score += check("Courbe liquide", q7, "Ménisque", 1, fuzzy=True) # "menicque" passera
-    score += check("Position oeil", q8, "En face du bas du ménisque", 2)
-    score += check("Volume Pierre", q9, 18, 3, num=True)
+    score += check("Def Masse", q2, "La quantité de matière", 1)
+    score += check("Outil Volume", q3_vol, "Une éprouvette graduée", 1)
+    score += check("Outil Masse", q3_mas, "Une balance", 1)
     
-    # Ex 4 (Protocole)
+    score += check("1,5 L -> dm3", q4, "1.5", 1, "num")
+    score += check("350 mL -> cm3", q5, "350", 1, "num")
+    score += check("2 kg -> g", q6, "2000", 1, "num")
+    
+    score += check("Courbe liquide", q7, "Ménisque", 1, "fuzzy")
+    score += check("Position oeil", q8, "En face du bas du ménisque", 2)
+    score += check("Volume Pierre", q9, 18, 3, "num")
+    
+    score += check("Masse 1L eau", q10, 1, 1, "num")
+    score += check("Huile vs Eau", q11, "Plus léger que l'eau", 1)
+    score += check("Masse Volumique", q12, "Masse Volumique", 1, "fuzzy")
+
+    # Calcul Spécial Ex 4 (1 erreur = -1 point)
     user_order = [pe1, pe2, pe3, pe4, pe5]
     corr_order = st.session_state.correct_protocol_values
-    pts_p = 0
-    if user_order == corr_order: pts_p = 4
-    elif user_order[0] == corr_order[0] and user_order[2] == corr_order[2]: pts_p = 2
     
-    score += pts_p
-    report.append({"question": "Ordre Protocole", "user_answer": "(Voir copie)", "correct_answer": "1.Allumer, 2.Gobelet, 3.Tare, 4.Verser, 5.Lire", "is_correct": pts_p==4})
-
-    # Ex 5
-    score += check("Masse 1L eau", q10, 1, 1, num=True)
-    score += check("Huile vs Eau", q11, "Plus léger", 1)
-    score += check("Masse Volumique", q12, "Masse Volumique", 1, fuzzy=True)
+    erreurs_proto = 0
+    for i in range(5):
+        if user_order[i] != corr_order[i]:
+            erreurs_proto += 1
+            
+    # Formule : 4 points - nombre d'erreurs (min 0)
+    pts_proto = max(0, 4 - erreurs_proto)
+    score += pts_proto
+    
+    status_proto = "perfect" if pts_proto == 4 else "wrong"
+    report.append({
+        "question": "Ordre du Protocole", 
+        "user_answer": f"{erreurs_proto} erreurs de placement", 
+        "correct_answer": "1.Allumer, 2.Gobelet, 3.Tare, 4.Verser, 5.Lire", 
+        "status": status_proto
+    })
 
     # Affichage résultat
-    st.success(f"Copie rendue ! Note finale : {score} / 20")
-    
-    if nom and prenom:
-        pdf_data = create_detailed_pdf(nom, prenom, classe, score, 20, report)
-        st.download_button("📄 TÉLÉCHARGER MA COPIE CORRIGÉE", pdf_data, f"Controle_{nom}.pdf", "application/pdf")
+    if score >= 10:
+        st.balloons()
+        st.success(f"🎉 Bravo ! Note : **{score} / 20**")
     else:
-        st.error("⚠️ Tu as oublié de mettre ton nom ! (Recharge la page pour recommencer si besoin)")
+        st.error(f"Note : **{score} / 20**. Télécharge le corrigé pour réviser.")
+
+    if nom and prenom:
+        pdf_bytes = create_detailed_pdf(nom, prenom, classe, score, 20, report)
+        st.download_button("📄 TÉLÉCHARGER LE CORRIGÉ PDF", pdf_bytes, f"Controle_{nom}.pdf", "application/pdf")
+    else:
+        st.warning("⚠️ Remplis ton NOM et PRÉNOM à gauche pour avoir ton PDF !")
