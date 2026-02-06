@@ -135,7 +135,6 @@ with st.sidebar:
     nom = st.text_input("NOM de famille", disabled=disable).upper()
     prenom = st.text_input("Prénom", disabled=disable).capitalize()
     
-    # --- MODIFICATION ICI : CLASSES 6EME ---
     classe = st.selectbox("Classe", ["6ème C", "6ème D", "Autre"], disabled=disable)
     
     if st.session_state.submitted:
@@ -164,10 +163,11 @@ with st.form("quiz_form"):
     # --- EXERCICE 2 ---
     with st.container(border=True):
         st.subheader("Exercice 2 : Conversions (3 pts)")
-        st.info("Rappel : 1 L = 1 dm³ et 1 mL = 1 cm³")
+        st.caption("Convertis les valeurs suivantes (écris juste le chiffre).")
         cc1, cc2, cc3 = st.columns(3)
-        q4 = cc1.text_input("1,5 L = ... dm³", disabled=disable)
-        q5 = cc2.text_input("350 mL = ... cm³", disabled=disable)
+        # -- MODIFICATION ICI : Conversions simplifiées --
+        q4 = cc1.text_input("1 L = ... mL", disabled=disable)
+        q5 = cc2.text_input("3000 mL = ... L", disabled=disable)
         q6 = cc3.text_input("2 kg = ... g", disabled=disable)
 
     # --- EXERCICE 3 ---
@@ -205,7 +205,11 @@ with st.form("quiz_form"):
         st.subheader("Exercice 5 : Réflexion (3 pts)")
         c5a, c5b = st.columns(2)
         q10 = c5a.number_input("Masse d'1 L d'eau (kg) ?", 0.0, step=0.1, disabled=disable)
-        q11 = c5b.radio("1 L d'huile est...", ["Plus lourd que l'eau", "Plus léger que l'eau"], disabled=disable)
+        
+        # -- MODIFICATION ICI : Indice --
+        st.info("💡 Indice : Rappelle-toi que l'huile flotte sur l'eau !")
+        
+        q11 = st.radio("1 L d'huile est...", ["Plus lourd que l'eau", "Plus léger que l'eau"], horizontal=True, disabled=disable)
         q12 = st.text_input("Nom de la grandeur (Masse...?)", disabled=disable).strip()
 
     # Bouton de validation
@@ -261,15 +265,16 @@ if submit_btn or st.session_state.submitted:
         report.append({"question": q, "user_answer": u, "correct_answer": c, "status": status})
         return points_gagnes
 
-    # Calculs Ex 1, 2, 3, 5
+    # Calculs Ex 1, 3, 5
     score += check("Def Volume", q1, "L'espace occupé par un objet", 1)
     score += check("Def Masse", q2, "La quantité de matière", 1)
     score += check("Outil Volume", q3_vol, "Une éprouvette graduée", 1)
     score += check("Outil Masse", q3_mas, "Une balance", 1)
     
-    score += check("1,5 L -> dm3", q4, "1.5", 1, "num")
-    score += check("350 mL -> cm3", q5, "350", 1, "num")
-    score += check("2 kg -> g", q6, "2000", 1, "num")
+    # -- CORRECTION EX 2 (Simplifié) --
+    score += check("1 L = ... mL", q4, "1000", 1, "num")
+    score += check("3000 mL = ... L", q5, "3", 1, "num")
+    score += check("2 kg = ... g", q6, "2000", 1, "num")
     
     score += check("Courbe liquide", q7, "Ménisque", 1, "fuzzy")
     score += check("Position oeil", q8, "En face du bas du ménisque", 2)
@@ -288,7 +293,6 @@ if submit_btn or st.session_state.submitted:
         if user_order[i] != corr_order[i]:
             erreurs_proto += 1
             
-    # Formule : 4 points - nombre d'erreurs (min 0)
     pts_proto = max(0, 4 - erreurs_proto)
     score += pts_proto
     
