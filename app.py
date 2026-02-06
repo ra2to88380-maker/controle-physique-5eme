@@ -5,9 +5,9 @@ import random
 import unicodedata
 
 # --- 1. CONFIGURATION & DESIGN ---
-st.set_page_config(page_title="Contrôle 5ème : Masse et Volume", page_icon="🧪", layout="centered")
+st.set_page_config(page_title="Contrôle 6ème : Masse et Volume", page_icon="🧪", layout="centered")
 
-# CSS pour rendre ça plus joli (Titres centrés, pas de marge inutile)
+# CSS pour le design
 st.markdown("""
     <style>
     .main {
@@ -17,9 +17,6 @@ st.markdown("""
         color: #4B0082;
         text-align: center;
         font-family: 'Helvetica', sans-serif;
-    }
-    h2, h3 {
-        color: #2c3e50;
     }
     .stButton>button {
         width: 100%;
@@ -88,7 +85,7 @@ def create_detailed_pdf(nom, prenom, classe, score, total, report):
         q = item['question'].encode('latin-1', 'replace').decode('latin-1')
         u = str(item['user_answer']).encode('latin-1', 'replace').decode('latin-1')
         c = str(item['correct_answer']).encode('latin-1', 'replace').decode('latin-1')
-        status = item['status'] # 'perfect', 'fuzzy', 'wrong'
+        status = item['status'] 
         
         pdf.ln(3)
         # Question (Fond gris)
@@ -134,15 +131,17 @@ disable = st.session_state.submitted
 
 # Sidebar
 with st.sidebar:
-    st.image("https://cdn-icons-png.flaticon.com/512/2933/2933886.png", width=80)
     st.header("Identité de l'élève")
     nom = st.text_input("NOM de famille", disabled=disable).upper()
     prenom = st.text_input("Prénom", disabled=disable).capitalize()
-    classe = st.selectbox("Classe", ["5 Sci C", "5 Sci D", "5 Sci E", "Autre"], disabled=disable)
+    
+    # --- MODIFICATION ICI : CLASSES 6EME ---
+    classe = st.selectbox("Classe", ["6ème C", "6ème D", "Autre"], disabled=disable)
+    
     if st.session_state.submitted:
         st.success("✅ Copie rendue.")
 
-st.title("⚖️ Contrôle : Masse et Volume")
+st.title("⚖️ Contrôle 6ème : Masse et Volume")
 st.markdown("---")
 
 with st.form("quiz_form"):
